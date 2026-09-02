@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,12 +11,14 @@
     <title>Oops:) Studio — Admin Control Center</title>
 
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
 
     <!-- Styles -->
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
+
 <body class="dashboard-body">
 
     <!-- ==========================================
@@ -35,14 +38,8 @@
             <form id="adminLoginForm" class="lock-form">
                 <div class="lock-field">
                     <label for="adminKeyInput">Master Admin Passkey / PIN</label>
-                    <input
-                        type="password"
-                        id="adminKeyInput"
-                        class="dash-input"
-                        placeholder="Enter master admin PIN..."
-                        autocomplete="current-password"
-                        required
-                    >
+                    <input type="password" id="adminKeyInput" class="dash-input" placeholder="Enter master admin PIN..."
+                        autocomplete="current-password" required>
                 </div>
                 <div id="lockErrorMsg" class="lock-error-msg"></div>
                 <button type="submit" id="adminUnlockBtn" class="lock-submit-btn">
@@ -122,7 +119,9 @@
                 <div class="dash-stat-card">
                     <div class="stat-icon-wrapper pink">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            <path
+                                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                            </path>
                         </svg>
                     </div>
                     <div class="stat-info">
@@ -273,7 +272,8 @@
                             <span class="title-icon">➕</span>
                             <h2>Add Stored Video / Photo</h2>
                         </div>
-                        <button type="button" id="seedDbBtn" class="seed-action-btn" title="Push sample videos to Firebase">
+                        <button type="button" id="seedDbBtn" class="seed-action-btn"
+                            title="Push sample videos to Firebase">
                             ⚡ Seed 11 High-Quality Videos
                         </button>
                     </div>
@@ -291,36 +291,32 @@
                             <div class="form-field">
                                 <label for="contentCategory">Category / Topic (For AI Recommendation)</label>
                                 <select id="contentCategory" class="dash-input select-input">
-                                    <option value="general">General</option>
-                                    <option value="nightlife">Nightlife & Tokyo</option>
-                                    <option value="music">Music & DJ</option>
-                                    <option value="dance">Dance</option>
-                                    <option value="sports">Sports & Skateboarding</option>
-                                    <option value="nature">Nature & Ocean</option>
-                                    <option value="lifestyle">Lifestyle & Coffee</option>
-                                    <option value="travel">Travel & Hiking</option>
+                                    <option value="pussy">pussy</option>
+                                    <option value="anime">Anime</option>
+                                    <option value="hentai">hentai</option>
+                                    <option value="chudai">chudai</option>
+                                    <option value="pornhub">pornhub</option>
+                                    <option value="teengirl">teengirl</option>
+                                    <option value="onlyfan">onlyfan</option>
+                                    <option value="tiktok">tik tok gils</option>
                                     <option value="comedy">Comedy</option>
-                                    <option value="gaming">Gaming</option>
-                                    <option value="art">Art & CGI</option>
+                                    <option value="cartoon">cartoon</option>
+                                    <option value="ass">Ass</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="form-field">
                             <label for="contentTitle">Title / Headline</label>
-                            <input type="text" id="contentTitle" class="dash-input" placeholder="e.g. Sunset in Venice Beach 🌅" required>
+                            <input type="text" id="contentTitle" class="dash-input"
+                                placeholder="e.g. Sunset in Venice Beach 🌅" required>
                         </div>
 
                         <div class="form-field">
                             <label for="contentUrl">Direct Media URL (MP4 Video or Image link)</label>
                             <div class="input-with-clear">
-                                <input
-                                    type="url"
-                                    id="contentUrl"
-                                    class="dash-input"
-                                    placeholder="https://assets.example.com/video.mp4"
-                                    required
-                                >
+                                <input type="url" id="contentUrl" class="dash-input"
+                                    placeholder="https://assets.example.com/video.mp4" required>
                                 <button type="button" id="clearUrlBtn" class="clear-btn" title="Clear">✕</button>
                             </div>
                             <span class="field-hint">Paste any direct public MP4 video or photo URL.</span>
@@ -337,7 +333,8 @@
 
                         <div class="form-field">
                             <label for="contentDesc">Description & Tags (optional)</label>
-                            <textarea id="contentDesc" class="dash-input textarea-input" rows="2" placeholder="e.g. Enjoying the moment #reels #vibes"></textarea>
+                            <textarea id="contentDesc" class="dash-input textarea-input" rows="2"
+                                placeholder="e.g. Enjoying the moment #reels #vibes"></textarea>
                         </div>
 
                         <div class="form-footer">
@@ -363,4 +360,5 @@
     <!-- Dashboard Module -->
     <script type="module" src="js/dashboard.js"></script>
 </body>
+
 </html>

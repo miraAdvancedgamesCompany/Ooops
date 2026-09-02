@@ -2,17 +2,21 @@
 // Oops:) — Reels Full-Screen Viewer Logic
 // Real aspect-ratio video sizing with letterboxing/borders
 // No publisher profiles, no follow buttons
-// Interactive like, comment, and save (auth required)
+// Infinite load: 13 reels at a time, highly randomized
 // ==========================================
 
 import { getAllContent, formatNumber, isLiked, isSaved, getLikeCount } from './firebase.js';
 import { handleLikeClick, handleSaveClick, openCommentsModal, INTERACTION_ICONS } from './interactions.js';
 import { getCurrentUser } from './auth.js';
-import { rankContentForUser, recordWatchSession } from './recommendation.js';
+import { rankContentForUser, recordWatchSession, markWatched } from './recommendation.js';
+
+const REELS_BATCH_SIZE = 13;
 
 let reelsUnsubscribe = null;
 let reelsObserver = null;
 let currentReelIndex = 0;
+let currentReelsPool = [];
+let renderedReelsCount = 0;
 
 export const REEL_ICONS = {
     heart: `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
@@ -28,11 +32,11 @@ export const REEL_ICONS = {
 };
 
 const musicTracks = [
-    'Original Audio — Oops:) Viral Sound',
+    'Original Audio — Viral Sound',
     'Night Vibes — Lo-Fi Chill',
-    'Summer Beat — Golden Wave',
-    'Bass Drop — Ultra Club',
-    'Acoustic Flow — Peaceful Studio'
+    'Golden Wave — Summer Beat',
+    'Ultra Club — Bass Drop',
+    'Peaceful Studio — Acoustic Flow'
 ];
 
 function getRandomMusic(seed) {
@@ -55,7 +59,7 @@ function renderReel(item, index) {
                     ${isVideo ? `
                         <video src="${item.url}" loop playsinline muted preload="auto" autoplay></video>
                     ` : `
-                        <img src="${item.url}" alt="${item.title || ''}">
+                        <img src="${item.url}" alt="${escapeHtml(item.title || '')}">
                     `}
                 </div>
             </div>
@@ -117,10 +121,10 @@ function renderReel(item, index) {
     `;
 }
 
-function attachReelEvents(container) {
+function attachReelEvents(elements) {
     const user = getCurrentUser();
 
-    container.querySelectorAll('.reel-item').forEach(reelItem => {
+    elements.forEach(reelItem => {
         const contentId = reelItem.dataset.id;
         const category = reelItem.dataset.category || 'general';
 
@@ -247,23 +251,56 @@ function attachReelEvents(container) {
                 }
             });
         }
-    });
 
-    // Auto-play active reel with IntersectionObserver & measure watch time
+        if (reelsObserver) {
+            reelsObserver.observe(reelItem);
+        }
+    });
+}
+
+function loadNextReelsBatch() {
+    const scrollContainer = document.getElementById('reelsScroll');
+    if (!scrollContainer || renderedReelsCount >= currentReelsPool.length) return;
+
+    const nextBatch = currentReelsPool.slice(renderedReelsCount, renderedReelsCount + REELS_BATCH_SIZE);
+    const startIndex = renderedReelsCount;
+    renderedReelsCount += nextBatch.length;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = nextBatch.map((item, i) => renderReel(item, startIndex + i)).join('');
+
+    const newReelElements = Array.from(tempDiv.children);
+    newReelElements.forEach(el => scrollContainer.appendChild(el));
+
+    attachReelEvents(newReelElements);
+}
+
+function setupReelsObserver() {
+    if (reelsObserver) {
+        reelsObserver.disconnect();
+    }
+
     reelsObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             const video = entry.target.querySelector('video');
             const disc = entry.target.querySelector('.reel-music-disc');
             const contentId = entry.target.dataset.id;
             const category = entry.target.dataset.category || 'general';
+            const index = parseInt(entry.target.dataset.index || '0');
 
             if (entry.isIntersecting) {
                 if (video) {
                     video.play().catch(() => {});
                     entry.target._startTime = Date.now();
+                    markWatched(contentId);
                 }
                 if (disc) disc.style.animationPlayState = 'running';
-                currentReelIndex = parseInt(entry.target.dataset.index || '0');
+                currentReelIndex = index;
+
+                // Infinite load: when user gets near the end of loaded batch, load next 13 reels
+                if (currentReelIndex >= renderedReelsCount - 3 && renderedReelsCount < currentReelsPool.length) {
+                    loadNextReelsBatch();
+                }
             } else {
                 if (video) {
                     video.pause();
@@ -277,10 +314,6 @@ function attachReelEvents(container) {
             }
         });
     }, { threshold: 0.65 });
-
-    container.querySelectorAll('.reel-item').forEach(item => {
-        reelsObserver.observe(item);
-    });
 }
 
 export function initReels() {
@@ -308,11 +341,21 @@ export function initReels() {
         const videoItems = items.filter(i => i.type === 'video');
         const displayItems = videoItems.length > 0 ? videoItems : items;
 
-        // Rank reels based on recommendation engine
-        const ranked = rankContentForUser(displayItems);
+        // Rank reels based on stochastic preference engine
+        currentReelsPool = rankContentForUser(displayItems);
+        renderedReelsCount = 0;
+        scrollContainer.innerHTML = '';
 
-        scrollContainer.innerHTML = ranked.map((item, i) => renderReel(item, i)).join('');
-        attachReelEvents(scrollContainer);
+        setupReelsObserver();
+
+        // Initial batch of 13 reels
+        const initialBatch = currentReelsPool.slice(0, REELS_BATCH_SIZE);
+        renderedReelsCount = initialBatch.length;
+
+        scrollContainer.innerHTML = initialBatch.map((item, i) => renderReel(item, i)).join('');
+
+        const initialElements = Array.from(scrollContainer.querySelectorAll('.reel-item'));
+        attachReelEvents(initialElements);
     });
 }
 

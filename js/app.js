@@ -125,49 +125,6 @@ export function showToast(message) {
     setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
-function setupHeaderLanguagePicker() {
-    const langBtn = document.getElementById('headerLangBtn');
-    if (!langBtn) return;
-
-    langBtn.addEventListener('click', () => {
-        const existing = document.getElementById('langPickerModal');
-        if (existing) {
-            existing.remove();
-            return;
-        }
-
-        const current = getCurrentLang();
-        const names = getLanguageNames();
-
-        const modal = document.createElement('div');
-        modal.id = 'langPickerModal';
-        modal.className = 'lang-picker-dropdown';
-        modal.innerHTML = Object.entries(names).map(([code, name]) => `
-            <button class="lang-option-btn ${code === current ? 'active' : ''}" data-lang="${code}">
-                ${name}
-            </button>
-        `).join('');
-
-        document.body.appendChild(modal);
-
-        modal.querySelectorAll('.lang-option-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                setLanguage(btn.dataset.lang);
-                modal.remove();
-                showToast('Language updated');
-            });
-        });
-
-        const closeOnClickOutside = (e) => {
-            if (!modal.contains(e.target) && e.target !== langBtn) {
-                modal.remove();
-                document.removeEventListener('click', closeOnClickOutside);
-            }
-        };
-        setTimeout(() => document.addEventListener('click', closeOnClickOutside), 10);
-    });
-}
-
 function initApp() {
     // 1. Initialize Internationalization
     initI18n();
@@ -201,10 +158,7 @@ function initApp() {
         });
     }
 
-    // 5. Header language quick picker
-    setupHeaderLanguagePicker();
-
-    // 6. Check Age Gate Verification
+    // 5. Check Age Gate Verification
     checkAgeGate();
 
     // 7. Route to initial page

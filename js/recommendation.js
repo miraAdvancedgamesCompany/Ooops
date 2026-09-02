@@ -1,6 +1,6 @@
 // ==========================================
 // Oops:) — TikTok & Instagram Style Recommendation Engine
-// Personalized Content Ranking & Affinity Modeling
+// High Randomness Weighted by User Preferences & Watched History
 // ==========================================
 
 import { getUserInterests, trackInteraction, detectCategory } from './firebase.js';
@@ -27,6 +27,41 @@ export function initRecommendation() {
     }
 }
 
+// ---- Watched History Management ----
+function getStorageKey() {
+    const user = getCurrentUser();
+    return user ? `oops_watched_${user.uid}` : 'oops_watched_guest';
+}
+
+export function getWatchedIds() {
+    try {
+        const raw = localStorage.getItem(getStorageKey());
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export function markWatched(contentId) {
+    if (!contentId) return;
+    try {
+        const key = getStorageKey();
+        const list = getWatchedIds();
+        if (!list.includes(contentId)) {
+            list.push(contentId);
+            localStorage.setItem(key, JSON.stringify(list));
+        }
+    } catch (e) {
+        console.error('Error saving watched status:', e);
+    }
+}
+
+export function clearWatched() {
+    try {
+        localStorage.removeItem(getStorageKey());
+    } catch (e) {}
+}
+
 // Track video watch time & engagement
 export function recordWatchSession(contentId, category, durationWatchedSec, totalDurationSec, loopedCount = 0) {
     if (!isLoggedIn() || !category) return;
@@ -46,75 +81,54 @@ export function recordWatchSession(contentId, category, durationWatchedSec, tota
         // Quick swipe away / skipped
         trackInteraction(user.uid, contentId, category, 'skip');
     }
+
+    // Also mark as watched
+    markWatched(contentId);
 }
 
-// Compute personalized score for a content item
-function computeContentScore(item) {
-    const category = item.category || detectCategory(item.title, item.description);
-    item.category = category; // cache it
-
-    // 1. User Affinity Score (0 - 100)
-    const affinity = userAffinityMap[category] || 0;
-    const normalizedAffinity = Math.min(100, affinity * 8);
-
-    // 2. Popularity Score (based on likes/comments/views)
-    const rawLikes = item.likes || 0;
-    const rawComments = item.comments || 0;
-    const popularityScore = Math.min(50, Math.log10(rawLikes + rawComments * 2 + 1) * 12);
-
-    // 3. Recency Score (boost newer items)
-    const now = Date.now();
-    const itemTime = item.timestamp || now;
-    const hoursOld = (now - itemTime) / (1000 * 60 * 60);
-    const recencyScore = Math.max(0, 30 - Math.min(30, hoursOld * 0.5));
-
-    // 4. Random Discovery / Exploration Factor (to prevent echo chambers like TikTok does)
-    const explorationNoise = (Math.random() - 0.5) * 20;
-
-    // Final weighted score
-    return (normalizedAffinity * 0.5) + (popularityScore * 0.25) + (recencyScore * 0.15) + explorationNoise;
-}
-
-// Sort items according to algorithmic recommendation
+// ---- Highly Randomized Recommendation with Preference Bias ----
+// User requirement:
+// "أريد الفيديوهات التي تظهر للمستخدم تكون عشوائية جدًا حسب المحتوي المفضل.
+// لاتظهر بالترتيب في الصفحة الرئيسية، وفيديوهات شافه المستخدم لا يتم عرضه مجددا له إلا إذا خلصت الفيديوهات كلها وقام بمشاهدتها كاملة"
 export function rankContentForUser(items) {
     if (!items || items.length === 0) return [];
 
-    // If anonymous, return a balanced shuffle with trending bias
-    if (!isLoggedIn() || Object.keys(userAffinityMap).length === 0) {
-        return [...items].sort((a, b) => {
-            const scoreA = (a.likes || 0) * 0.7 + Math.random() * 5000;
-            const scoreB = (b.likes || 0) * 0.7 + Math.random() * 5000;
-            return scoreB - scoreA;
-        });
+    // 1. Filter out videos the user has already watched
+    const watchedIds = new Set(getWatchedIds());
+    let unwatched = items.filter(it => !watchedIds.has(it.id));
+
+    // If user has watched all videos, reset watched history so they cycle again!
+    if (unwatched.length === 0) {
+        clearWatched();
+        unwatched = [...items];
     }
 
-    // Clone and score items
-    const scored = items.map(item => ({
-        item,
-        score: computeContentScore(item)
-    }));
+    // 2. High Randomness Weighted by Preference (Weighted Reservoir Random Permutation)
+    // Efraimidis-Spirakis Weighted Random Sampling Algorithm:
+    // key = Math.pow(Math.random(), 1 / weight)
+    // Sorting by key descending produces a truly random order, where items with higher preference
+    // have a mathematically higher probability of appearing earlier, but NEVER in static order!
+    const scoredPool = unwatched.map(item => {
+        const category = item.category || detectCategory(item.title, item.description);
+        item.category = category;
 
-    // Sort descending by score
-    scored.sort((a, b) => b.score - a.score);
+        // Base affinity from user activity (likes, saves, watch-time)
+        const affinity = userAffinityMap[category] || 0;
+        
+        // Weight: higher if preferred, but always positive
+        const preferenceWeight = 1.0 + Math.min(15, affinity * 2.5);
 
-    // Inject 15% exploration items from untouched categories
-    const rankedList = [];
-    const highInterest = scored.slice(0, Math.floor(scored.length * 0.8));
-    const discoveryPool = scored.slice(Math.floor(scored.length * 0.8));
+        // Stochastic random key (generates high randomness on every single call)
+        const randomScore = Math.pow(Math.random(), 1.0 / preferenceWeight);
 
-    let highIdx = 0;
-    let discIdx = 0;
+        return {
+            item,
+            randomScore
+        };
+    });
 
-    for (let i = 0; i < scored.length; i++) {
-        // Every 5th or 6th item, inject discovery content
-        if (i % 5 === 4 && discIdx < discoveryPool.length) {
-            rankedList.push(discoveryPool[discIdx++].item);
-        } else if (highIdx < highInterest.length) {
-            rankedList.push(highInterest[highIdx++].item);
-        } else if (discIdx < discoveryPool.length) {
-            rankedList.push(discoveryPool[discIdx++].item);
-        }
-    }
+    // Sort by stochastic key descending
+    scoredPool.sort((a, b) => b.randomScore - a.randomScore);
 
-    return rankedList;
+    return scoredPool.map(entry => entry.item);
 }

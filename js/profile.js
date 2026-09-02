@@ -170,8 +170,10 @@ function setupLanguageSelector(container) {
     const select = container.querySelector('#profileLangSelect');
     if (select) {
         select.addEventListener('change', (e) => {
-            setLanguage(e.target.value);
-            initProfile();
+            const newLang = e.target.value;
+            setLanguage(newLang);
+            // Reload the page as requested: "عند إختيار للغة معينة يتم إعادة تحميل الصفحة وتغير إلي اللغة المختارة"
+            window.location.reload();
         });
     }
 }

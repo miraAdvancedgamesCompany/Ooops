@@ -1,16 +1,22 @@
 // ==========================================
 // Oops:) — Feed Page Logic (Clean Video Showcase)
 // No publisher profiles, no fake views/stats
-// User interactions require login
+// Highly randomized by user preference
+// Infinite scroll: 13 videos per batch
 // ==========================================
 
 import { getAllContent, timeAgo, formatNumber, isLiked, isSaved, getLikeCount } from './firebase.js';
 import { handleLikeClick, handleSaveClick, openCommentsModal, INTERACTION_ICONS } from './interactions.js';
-import { isLoggedIn, getCurrentUser } from './auth.js';
-import { rankContentForUser, recordWatchSession } from './recommendation.js';
+import { getCurrentUser } from './auth.js';
+import { rankContentForUser, recordWatchSession, markWatched } from './recommendation.js';
+
+const BATCH_SIZE = 13;
 
 let feedUnsubscribe = null;
 let activePostObservers = [];
+let feedScrollSentinelObserver = null;
+let currentFeedPool = [];
+let renderedCount = 0;
 
 function renderSkeletons(count = 2) {
     return Array(count).fill('').map(() => `
@@ -38,7 +44,7 @@ function renderPost(item) {
                 ${isVideo ? `
                     <video src="${item.url}" loop playsinline muted preload="metadata" autoplay></video>
                 ` : `
-                    <img src="${item.url}" alt="${item.title || ''}" loading="lazy">
+                    <img src="${item.url}" alt="${escapeHtml(item.title || '')}" loading="lazy">
                 `}
                 <div class="heart-burst">${INTERACTION_ICONS.heartFilled}</div>
                 ${isVideo ? `
@@ -84,10 +90,10 @@ function renderPost(item) {
     `;
 }
 
-function attachPostEvents(container) {
+function attachPostEvents(elements) {
     const user = getCurrentUser();
 
-    container.querySelectorAll('.feed-post').forEach(post => {
+    elements.forEach(post => {
         const contentId = post.dataset.id;
         const category = post.dataset.category || 'general';
 
@@ -196,7 +202,7 @@ function attachPostEvents(container) {
             });
         }
 
-        // Watch session measurement for recommendation
+        // Watch session measurement for recommendation & marking as watched
         if (video) {
             let sessionStartTime = 0;
             let totalWatched = 0;
@@ -206,6 +212,8 @@ function attachPostEvents(container) {
                     if (entry.isIntersecting) {
                         video.play().catch(() => {});
                         sessionStartTime = Date.now();
+                        // Mark watched upon entering screen
+                        markWatched(contentId);
                     } else {
                         video.pause();
                         if (sessionStartTime > 0) {
@@ -215,7 +223,7 @@ function attachPostEvents(container) {
                         }
                     }
                 });
-            }, { threshold: 0.6 });
+            }, { threshold: 0.55 });
 
             observer.observe(post);
             activePostObservers.push(observer);
@@ -223,11 +231,71 @@ function attachPostEvents(container) {
     });
 }
 
+function loadNextFeedBatch() {
+    const feedContainer = document.getElementById('feedContainer');
+    const sentinel = document.getElementById('feedScrollSentinel');
+    if (!feedContainer || renderedCount >= currentFeedPool.length) {
+        if (sentinel) sentinel.style.display = 'none';
+        return;
+    }
+
+    const nextBatch = currentFeedPool.slice(renderedCount, renderedCount + BATCH_SIZE);
+    renderedCount += nextBatch.length;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = nextBatch.map(item => renderPost(item)).join('');
+
+    const newPosts = Array.from(tempDiv.children);
+    newPosts.forEach(p => {
+        if (sentinel) {
+            feedContainer.insertBefore(p, sentinel);
+        } else {
+            feedContainer.appendChild(p);
+        }
+    });
+
+    attachPostEvents(newPosts);
+
+    if (renderedCount >= currentFeedPool.length && sentinel) {
+        sentinel.style.display = 'none';
+    }
+}
+
+function setupInfiniteScroll() {
+    const feedContainer = document.getElementById('feedContainer');
+    if (!feedContainer) return;
+
+    let sentinel = document.getElementById('feedScrollSentinel');
+    if (!sentinel) {
+        sentinel = document.createElement('div');
+        sentinel.id = 'feedScrollSentinel';
+        sentinel.className = 'feed-scroll-sentinel';
+        sentinel.innerHTML = `
+            <div class="loading-spinner" style="width:22px;height:22px;margin:20px auto;"></div>
+        `;
+        feedContainer.appendChild(sentinel);
+    }
+
+    if (feedScrollSentinelObserver) {
+        feedScrollSentinelObserver.disconnect();
+    }
+
+    feedScrollSentinelObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                loadNextFeedBatch();
+            }
+        });
+    }, { rootMargin: '400px' });
+
+    feedScrollSentinelObserver.observe(sentinel);
+}
+
 export function initFeed() {
     const container = document.getElementById('feedView');
     if (!container) return;
 
-    container.innerHTML = `<div class="feed-container" id="feedContainer">${renderSkeletons()}</div>`;
+    container.innerHTML = `<div class="feed-container" id="feedContainer">${renderSkeletons(3)}</div>`;
 
     if (feedUnsubscribe) feedUnsubscribe();
 
@@ -235,11 +303,23 @@ export function initFeed() {
         const feedContainer = document.getElementById('feedContainer');
         if (!feedContainer) return;
 
-        // Rank feed items based on recommendation engine
-        const ranked = rankContentForUser(items);
+        // Rank feed items based on stochastic preference engine
+        currentFeedPool = rankContentForUser(items);
+        renderedCount = 0;
 
-        feedContainer.innerHTML = ranked.map(item => renderPost(item)).join('');
-        attachPostEvents(feedContainer);
+        feedContainer.innerHTML = '';
+
+        // Initial batch of 13 videos
+        const initialBatch = currentFeedPool.slice(0, BATCH_SIZE);
+        renderedCount = initialBatch.length;
+
+        feedContainer.innerHTML = initialBatch.map(item => renderPost(item)).join('');
+
+        const renderedPosts = Array.from(feedContainer.querySelectorAll('.feed-post'));
+        attachPostEvents(renderedPosts);
+
+        // Setup sentinel for subsequent batches of 13
+        setupInfiniteScroll();
     });
 }
 
@@ -247,6 +327,10 @@ export function destroyFeed() {
     if (feedUnsubscribe) {
         feedUnsubscribe();
         feedUnsubscribe = null;
+    }
+    if (feedScrollSentinelObserver) {
+        feedScrollSentinelObserver.disconnect();
+        feedScrollSentinelObserver = null;
     }
     activePostObservers.forEach(obs => obs.disconnect());
     activePostObservers = [];

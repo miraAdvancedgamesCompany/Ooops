@@ -417,9 +417,9 @@ export function formatNumber(num) {
 
 // ---- Content Categories ----
 export const CONTENT_CATEGORIES = [
-    'general', 'music', 'dance', 'comedy', 'sports', 'gaming',
-    'food', 'travel', 'fashion', 'art', 'tech', 'nature',
-    'nightlife', 'lifestyle', 'fitness', 'education', 'beauty', 'pets'
+    'pussy', 'anime', 'hentai', 'chudai', 'pornhub',
+    'teengirl', 'onlyfan', 'tiktok', 'comedy', 'cartoon', 'ass',
+    'general', 'music', 'dance', 'sports', 'gaming', 'nature', 'travel', 'art'
 ];
 
 export function detectCategory(title, description) {
