@@ -5,18 +5,20 @@
 // Infinite scroll: 13 videos per batch
 // ==========================================
 
-import { getAllContent, timeAgo, formatNumber, isLiked, isSaved, getLikeCount } from './firebase.js';
+import { getAllContent, timeAgo, formatNumber, isLiked, isSaved, getLikeCount, incrementViewCount } from './firebase.js';
 import { handleLikeClick, handleSaveClick, openCommentsModal, INTERACTION_ICONS } from './interactions.js';
 import { getCurrentUser } from './auth.js';
-import { rankContentForUser, recordWatchSession, markWatched } from './recommendation.js';
+import { rankContentForUser, recordWatchSession, markWatched, clearWatched } from './recommendation.js';
 
 const BATCH_SIZE = 13;
 
 let feedUnsubscribe = null;
 let activePostObservers = [];
 let feedScrollSentinelObserver = null;
+let allFeedItems = [];
 let currentFeedPool = [];
 let renderedCount = 0;
+let lastKnownFeedPoolSize = 0;
 
 function renderSkeletons(count = 2) {
     return Array(count).fill('').map(() => `
@@ -42,7 +44,7 @@ function renderPost(item) {
             <!-- Media Area: Clean, No publisher avatar/username header -->
             <div class="post-media" data-type="${item.type}" data-url="${item.url}">
                 ${isVideo ? `
-                    <video src="${item.url}" loop playsinline muted preload="metadata" autoplay></video>
+                    <video src="${item.url}" loop playsinline muted preload="metadata"></video>
                 ` : `
                     <img src="${item.url}" alt="${escapeHtml(item.title || '')}" loading="lazy">
                 `}
@@ -54,6 +56,12 @@ function renderPost(item) {
                     <button class="mute-btn" data-muted="true" aria-label="Toggle Mute">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
                     </button>
+                    <button class="fullscreen-btn" aria-label="Fullscreen">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                    </button>
+                    <div class="feed-scrubber-wrap">
+                        <input type="range" class="feed-scrubber" min="0" max="100" value="0" step="0.1">
+                    </div>
                 ` : ''}
             </div>
 
@@ -202,18 +210,54 @@ function attachPostEvents(elements) {
             });
         }
 
+        // Fullscreen button
+        const fullscreenBtn = post.querySelector('.fullscreen-btn');
+        if (fullscreenBtn && video) {
+            fullscreenBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (video.requestFullscreen) video.requestFullscreen();
+                else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            });
+        }
+
+        // Feed scrubber
+        const feedScrubber = post.querySelector('.feed-scrubber');
+        if (feedScrubber && video) {
+            let isScrubbing = false;
+            feedScrubber.addEventListener('mousedown', () => { isScrubbing = true; });
+            feedScrubber.addEventListener('touchstart', () => { isScrubbing = true; }, { passive: true });
+            feedScrubber.addEventListener('input', (e) => {
+                e.stopPropagation();
+                if (video.duration) video.currentTime = (parseFloat(e.target.value) / 100) * video.duration;
+            });
+            feedScrubber.addEventListener('mouseup', () => { isScrubbing = false; });
+            feedScrubber.addEventListener('touchend', () => { isScrubbing = false; }, { passive: true });
+            video.addEventListener('timeupdate', () => {
+                if (!isScrubbing && video.duration) feedScrubber.value = (video.currentTime / video.duration) * 100;
+            });
+        }
+
         // Watch session measurement for recommendation & marking as watched
         if (video) {
             let sessionStartTime = 0;
             let totalWatched = 0;
+            let viewCounted = false;
 
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         video.play().catch(() => {});
                         sessionStartTime = Date.now();
-                        // Mark watched upon entering screen
                         markWatched(contentId);
+                        // Count real view after 3 seconds in viewport
+                        if (!viewCounted) {
+                            setTimeout(() => {
+                                if (sessionStartTime > 0) {
+                                    incrementViewCount(contentId);
+                                    viewCounted = true;
+                                }
+                            }, 3000);
+                        }
                     } else {
                         video.pause();
                         if (sessionStartTime > 0) {
@@ -234,31 +278,39 @@ function attachPostEvents(elements) {
 function loadNextFeedBatch() {
     const feedContainer = document.getElementById('feedContainer');
     const sentinel = document.getElementById('feedScrollSentinel');
-    if (!feedContainer || renderedCount >= currentFeedPool.length) {
-        if (sentinel) sentinel.style.display = 'none';
-        return;
+    if (!feedContainer || allFeedItems.length === 0) return;
+
+    // If reached end of current pool, recycle watched history and append new randomized batch
+    if (renderedCount >= currentFeedPool.length) {
+        clearWatched();
+        const recycled = rankContentForUser(allFeedItems);
+        currentFeedPool = currentFeedPool.concat(recycled);
     }
 
     const nextBatch = currentFeedPool.slice(renderedCount, renderedCount + BATCH_SIZE);
-    renderedCount += nextBatch.length;
+    if (nextBatch.length === 0) return;
 
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = nextBatch.map(item => renderPost(item)).join('');
-
-    const newPosts = Array.from(tempDiv.children);
-    newPosts.forEach(p => {
-        if (sentinel) {
-            feedContainer.insertBefore(p, sentinel);
-        } else {
-            feedContainer.appendChild(p);
-        }
-    });
-
-    attachPostEvents(newPosts);
-
-    if (renderedCount >= currentFeedPool.length && sentinel) {
-        sentinel.style.display = 'none';
+    if (sentinel) {
+        sentinel.style.display = 'block';
     }
+
+    // Loading indicator delay ("l'ording")
+    setTimeout(() => {
+        renderedCount += nextBatch.length;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = nextBatch.map(item => renderPost(item)).join('');
+
+        const newPosts = Array.from(tempDiv.children);
+        newPosts.forEach(p => {
+            if (sentinel) {
+                feedContainer.insertBefore(p, sentinel);
+            } else {
+                feedContainer.appendChild(p);
+            }
+        });
+
+        attachPostEvents(newPosts);
+    }, 300);
 }
 
 function setupInfiniteScroll() {
@@ -303,37 +355,33 @@ export function initFeed() {
         const feedContainer = document.getElementById('feedContainer');
         if (!feedContainer) return;
 
-        // Rank feed items based on stochastic preference engine
+        allFeedItems = items;
+
+        // Guard: only re-rank if pool size changed (fixes Firebase onValue re-trigger bug)
+        if (items.length === lastKnownFeedPoolSize && renderedCount > 0) return;
+        lastKnownFeedPoolSize = items.length;
+
         currentFeedPool = rankContentForUser(items);
         renderedCount = 0;
-
         feedContainer.innerHTML = '';
 
-        // Initial batch of 13 videos
         const initialBatch = currentFeedPool.slice(0, BATCH_SIZE);
         renderedCount = initialBatch.length;
-
         feedContainer.innerHTML = initialBatch.map(item => renderPost(item)).join('');
 
         const renderedPosts = Array.from(feedContainer.querySelectorAll('.feed-post'));
         attachPostEvents(renderedPosts);
-
-        // Setup sentinel for subsequent batches of 13
         setupInfiniteScroll();
     });
 }
 
 export function destroyFeed() {
-    if (feedUnsubscribe) {
-        feedUnsubscribe();
-        feedUnsubscribe = null;
-    }
-    if (feedScrollSentinelObserver) {
-        feedScrollSentinelObserver.disconnect();
-        feedScrollSentinelObserver = null;
-    }
+    if (feedUnsubscribe) { feedUnsubscribe(); feedUnsubscribe = null; }
+    if (feedScrollSentinelObserver) { feedScrollSentinelObserver.disconnect(); feedScrollSentinelObserver = null; }
     activePostObservers.forEach(obs => obs.disconnect());
     activePostObservers = [];
+    lastKnownFeedPoolSize = 0;
+    renderedCount = 0;
 
     document.querySelectorAll('#feedView video').forEach(v => {
         try { v.pause(); } catch (e) {}

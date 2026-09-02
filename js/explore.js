@@ -1,16 +1,26 @@
 // ==========================================
-// Oops:) — Explore / Grid Page Logic
-// Clean Pre-stored Video Discovery Grid
+// Oops:) — Explore / Search Page Logic
+// 7 items per batch, infinite scroll with loading spinner
+// Advanced multi-token and character-level search
+// Real view counting and watched history support
 // ==========================================
 
-import { getAllContent, shuffleArray, formatNumber } from './firebase.js';
+import { getAllContent, shuffleArray, formatNumber, incrementViewCount } from './firebase.js';
 import { handleLikeClick, handleSaveClick, openCommentsModal, INTERACTION_ICONS } from './interactions.js';
+import { rankContentForUser, markWatched, clearWatched } from './recommendation.js';
 import { t } from './i18n.js';
+
+const EXPLORE_BATCH_SIZE = 7;
 
 let exploreUnsubscribe = null;
 let allItems = [];
-let filteredItems = [];
+let filteredPool = [];
+let renderedExploreCount = 0;
 let activeFilter = 'all';
+let currentSearchQuery = '';
+let exploreSentinelObserver = null;
+let searchDebounceTimer = null;
+let lastKnownExplorePoolSize = 0;
 
 export const EXPLORE_ICONS = {
     search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
@@ -25,7 +35,7 @@ function renderSearchBar() {
         <div class="explore-search">
             <div class="search-input-wrapper">
                 ${EXPLORE_ICONS.search}
-                <input type="text" class="search-input" id="exploreSearchInput" placeholder="${t('explore_search')}" data-i18n="explore_search">
+                <input type="text" class="search-input" id="exploreSearchInput" placeholder="${t('explore_search')}" data-i18n="explore_search" autocomplete="off">
             </div>
         </div>
         <div class="explore-filters" id="exploreFilters">
@@ -47,7 +57,7 @@ function renderGridItem(item, index) {
             ${isVideo ? `
                 <video src="${item.url}" muted loop playsinline preload="metadata"></video>
             ` : `
-                <img src="${item.url}" alt="${item.title || ''}" loading="lazy">
+                <img src="${item.url}" alt="${escapeHtml(item.title || '')}" loading="lazy">
             `}
             ${isVideo ? `
                 <div class="grid-item-indicator">${EXPLORE_ICONS.play}</div>
@@ -63,37 +73,14 @@ function renderGridItem(item, index) {
 }
 
 function renderSkeletonGrid() {
-    return Array(9).fill('').map((_, i) => {
+    return Array(7).fill('').map((_, i) => {
         const isLarge = i === 0 || i === 5;
         return `<div class="explore-grid-item ${isLarge ? 'large' : ''} skeleton explore-skeleton-item"></div>`;
     }).join('');
 }
 
-function renderGrid(items) {
-    const grid = document.getElementById('exploreGrid');
-    if (!grid) return;
-
-    if (items.length === 0) {
-        grid.innerHTML = `
-            <div style="grid-column: 1 / -1; padding: 40px 16px; text-align: center;">
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        ${EXPLORE_ICONS.search}
-                    </div>
-                    <h3 data-i18n="explore_no_results">${t('explore_no_results')}</h3>
-                    <p data-i18n="explore_no_results_hint">${t('explore_no_results_hint')}</p>
-                </div>
-            </div>
-        `;
-        return;
-    }
-
-    grid.innerHTML = items.map((item, i) => renderGridItem(item, i)).join('');
-    attachGridEvents(grid);
-}
-
-function attachGridEvents(grid) {
-    grid.querySelectorAll('.explore-grid-item').forEach(item => {
+function attachGridEvents(elements) {
+    elements.forEach(item => {
         item.addEventListener('click', () => {
             openMediaModal(item.dataset);
         });
@@ -118,6 +105,12 @@ function openMediaModal(data) {
     const isVideo = data.type === 'video';
     const item = allItems.find(i => i.id === data.id);
     const category = item?.category || 'general';
+
+    // Track real view & mark as watched
+    if (item) {
+        incrementViewCount(item.id);
+        markWatched(item.id);
+    }
 
     const modal = document.createElement('div');
     modal.className = 'video-modal-overlay';
@@ -162,7 +155,6 @@ function openMediaModal(data) {
         </div>
     `;
 
-    // Modal interactions
     if (item) {
         const likeBtn = modal.querySelector('#modalLikeBtn');
         const likeCount = modal.querySelector('#modalLikeCount');
@@ -202,34 +194,159 @@ function openMediaModal(data) {
     document.body.appendChild(modal);
 }
 
+// Compute the pool of items based on activeFilter and currentSearchQuery
+function computeFilteredPool() {
+    let pool = [...allItems];
+
+    // 1. Search Query Filter (Advanced multi-token + character matching)
+    if (currentSearchQuery) {
+        const tokens = currentSearchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+        pool = pool.filter(item => {
+            const text = ((item.title || '') + ' ' + (item.description || '') + ' ' + (item.category || '')).toLowerCase();
+            return tokens.every(token => text.includes(token));
+        });
+    }
+
+    // 2. Tab Filter
+    switch (activeFilter) {
+        case 'video':
+            pool = pool.filter(i => i.type === 'video');
+            break;
+        case 'image':
+            pool = pool.filter(i => i.type === 'image');
+            break;
+        case 'trending':
+            pool = pool.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            break;
+        case 'recent':
+            pool = pool.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            break;
+        default:
+            // "all": If no search, use recommendation engine ranking
+            if (!currentSearchQuery) {
+                pool = rankContentForUser(pool);
+            }
+    }
+
+    return pool;
+}
+
+function loadNextExploreBatch() {
+    const grid = document.getElementById('exploreGrid');
+    const sentinel = document.getElementById('exploreScrollSentinel');
+    if (!grid) return;
+
+    // If reached end of current pool
+    if (renderedExploreCount >= filteredPool.length) {
+        // If not searching, recycle videos so infinite scroll never gets stuck
+        if (!currentSearchQuery && allItems.length > 0) {
+            clearWatched();
+            const recycled = rankContentForUser(allItems);
+            filteredPool = filteredPool.concat(recycled);
+        } else {
+            if (sentinel) sentinel.style.display = 'none';
+            return;
+        }
+    }
+
+    // Show loading indicator in sentinel
+    if (sentinel) {
+        sentinel.style.display = 'flex';
+        sentinel.innerHTML = `<div class="loading-spinner" style="width:24px;height:24px;"></div>`;
+    }
+
+    setTimeout(() => {
+        const nextBatch = filteredPool.slice(renderedExploreCount, renderedExploreCount + EXPLORE_BATCH_SIZE);
+        const startIndex = renderedExploreCount;
+        renderedExploreCount += nextBatch.length;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = nextBatch.map((item, i) => renderGridItem(item, startIndex + i)).join('');
+
+        const newElements = Array.from(tempDiv.children);
+        newElements.forEach(el => {
+            if (sentinel) {
+                grid.insertBefore(el, sentinel);
+            } else {
+                grid.appendChild(el);
+            }
+        });
+
+        attachGridEvents(newElements);
+
+        if (renderedExploreCount >= filteredPool.length && currentSearchQuery && sentinel) {
+            sentinel.style.display = 'none';
+        }
+    }, 280);
+}
+
+function renderInitialExploreGrid() {
+    const grid = document.getElementById('exploreGrid');
+    if (!grid) return;
+
+    filteredPool = computeFilteredPool();
+    renderedExploreCount = 0;
+    grid.innerHTML = '';
+
+    if (filteredPool.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 40px 16px; text-align: center;">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        ${EXPLORE_ICONS.search}
+                    </div>
+                    <h3 data-i18n="explore_no_results">${t('explore_no_results')}</h3>
+                    <p data-i18n="explore_no_results_hint">${t('explore_no_results_hint')}</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Initial batch of 7 items
+    const initialBatch = filteredPool.slice(0, EXPLORE_BATCH_SIZE);
+    renderedExploreCount = initialBatch.length;
+
+    grid.innerHTML = initialBatch.map((item, i) => renderGridItem(item, i)).join('');
+
+    // Append sentinel for loading next 7 items
+    const sentinel = document.createElement('div');
+    sentinel.id = 'exploreScrollSentinel';
+    sentinel.className = 'explore-scroll-sentinel';
+    sentinel.innerHTML = `<div class="loading-spinner" style="width:24px;height:24px;"></div>`;
+    grid.appendChild(sentinel);
+
+    const initialElements = Array.from(grid.querySelectorAll('.explore-grid-item'));
+    attachGridEvents(initialElements);
+
+    setupExploreSentinelObserver();
+}
+
+function setupExploreSentinelObserver() {
+    if (exploreSentinelObserver) {
+        exploreSentinelObserver.disconnect();
+    }
+
+    const sentinel = document.getElementById('exploreScrollSentinel');
+    if (!sentinel) return;
+
+    exploreSentinelObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                loadNextExploreBatch();
+            }
+        });
+    }, { rootMargin: '300px' });
+
+    exploreSentinelObserver.observe(sentinel);
+}
+
 function applyFilter(filter) {
     activeFilter = filter;
-
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.filter === filter);
     });
-
-    let result = [...allItems];
-
-    switch (filter) {
-        case 'video':
-            result = result.filter(i => i.type === 'video');
-            break;
-        case 'image':
-            result = result.filter(i => i.type === 'image');
-            break;
-        case 'trending':
-            result = result.sort((a, b) => (b.likes || 0) - (a.likes || 0));
-            break;
-        case 'recent':
-            result = result.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            break;
-        default:
-            result = shuffleArray(result);
-    }
-
-    filteredItems = result;
-    renderGrid(result);
+    renderInitialExploreGrid();
 }
 
 export function initExplore() {
@@ -247,27 +364,23 @@ export function initExplore() {
     const searchInput = document.getElementById('exploreSearchInput');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-            const query = (e.target.value || '').toLowerCase().trim();
-            if (!query) {
-                renderGrid(filteredItems.length ? filteredItems : allItems);
-                return;
-            }
-            const results = allItems.filter(item =>
-                (item.title || '').toLowerCase().includes(query) ||
-                (item.description || '').toLowerCase().includes(query) ||
-                (item.category || '').toLowerCase().includes(query)
-            );
-            renderGrid(results);
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                currentSearchQuery = (e.target.value || '').trim();
+                renderInitialExploreGrid();
+            }, 200);
         });
     }
 
     if (exploreUnsubscribe) exploreUnsubscribe();
 
     exploreUnsubscribe = getAllContent((items) => {
+        // Guard against duplicate triggers
+        if (items.length === lastKnownExplorePoolSize && renderedExploreCount > 0) return;
+        lastKnownExplorePoolSize = items.length;
+
         allItems = items;
-        const shuffled = shuffleArray(items);
-        filteredItems = shuffled;
-        renderGrid(shuffled);
+        renderInitialExploreGrid();
     });
 }
 
@@ -276,7 +389,14 @@ export function destroyExplore() {
         exploreUnsubscribe();
         exploreUnsubscribe = null;
     }
+    if (exploreSentinelObserver) {
+        exploreSentinelObserver.disconnect();
+        exploreSentinelObserver = null;
+    }
+    clearTimeout(searchDebounceTimer);
     document.querySelectorAll('.video-modal-overlay').forEach(m => m.remove());
+    lastKnownExplorePoolSize = 0;
+    renderedExploreCount = 0;
 }
 
 function escapeHtml(str) {
@@ -289,3 +409,4 @@ function escapeHtml(str) {
         '"': '&quot;'
     }[tag] || tag));
 }
+

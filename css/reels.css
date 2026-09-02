@@ -302,3 +302,165 @@
     0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); }
 }
+
+/* ---- Three Tap Zones ---- */
+.reel-tap-zones {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    pointer-events: none;
+}
+
+.reel-zone {
+    flex: 1;
+    height: 100%;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* ---- Seek Flash Overlays (±5s) ---- */
+.reel-seek-flash {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 35%;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.reel-seek-flash.active {
+    opacity: 1;
+    animation: seekFlashAnim 0.7s ease forwards;
+}
+
+.reel-seek-left  { left: 0; background: radial-gradient(ellipse at left, rgba(255,255,255,0.12) 0%, transparent 70%); }
+.reel-seek-right { right: 0; background: radial-gradient(ellipse at right, rgba(255,255,255,0.12) 0%, transparent 70%); }
+
+.reel-seek-ripple {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    animation: none;
+}
+
+.reel-seek-flash.active .reel-seek-ripple {
+    animation: seekRipple 0.6s ease forwards;
+}
+
+.reel-seek-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    letter-spacing: 0.5px;
+}
+
+@keyframes seekFlashAnim {
+    0%   { opacity: 0; }
+    20%  { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes seekRipple {
+    0%   { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* ---- 2× Speed Badge ---- */
+.reel-speed-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 12;
+    background: rgba(0,0,0,0.65);
+    color: white;
+    font-size: 28px;
+    font-weight: 900;
+    padding: 10px 20px;
+    border-radius: 12px;
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.2);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.reel-speed-badge.active {
+    opacity: 1;
+}
+
+/* ---- Draggable Scrubber (TikTok style) ---- */
+.reel-scrubber-wrap {
+    position: absolute;
+    bottom: calc(var(--nav-height) + 8px);
+    left: 0;
+    right: 80px;
+    z-index: 20;
+    padding: 0 12px;
+}
+
+.reel-scrubber {
+    width: 100%;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    transition: height 0.15s ease;
+}
+
+.reel-scrubber:hover,
+.reel-scrubber:active {
+    height: 5px;
+}
+
+.reel-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    transition: transform 0.1s ease;
+}
+
+.reel-scrubber:active::-webkit-slider-thumb {
+    transform: scale(1.3);
+}
+
+.reel-scrubber::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: none;
+}
+
+.reel-scrubber::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, white var(--val, 0%), rgba(255,255,255,0.3) var(--val, 0%));
+    border-radius: 2px;
+}
+
+/* ---- Batch Loading Slide ---- */
+.reel-batch-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+}

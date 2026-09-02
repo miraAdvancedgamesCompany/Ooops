@@ -105,6 +105,88 @@
     fill: white;
 }
 
+/* Fullscreen Button */
+.fullscreen-btn {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-full);
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    transition: all var(--transition-fast);
+    backdrop-filter: blur(4px);
+    border: none;
+    cursor: pointer;
+    color: white;
+}
+
+.fullscreen-btn:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: scale(1.1);
+}
+
+.fullscreen-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: white;
+}
+
+/* Feed Video Scrubber Line */
+.feed-scrubber-wrap {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 8;
+    height: 12px;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 4px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.4));
+}
+
+.feed-scrubber {
+    width: 100%;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    transition: height 0.15s ease;
+}
+
+.feed-scrubber:hover,
+.feed-scrubber:active {
+    height: 6px;
+}
+
+.feed-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+.feed-scrubber::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    border: none;
+}
+
 /* Post Actions */
 .post-actions {
     display: flex;

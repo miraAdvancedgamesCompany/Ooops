@@ -202,7 +202,15 @@
 .explore-grid-item:nth-child(4) { animation-delay: 0.08s; }
 .explore-grid-item:nth-child(5) { animation-delay: 0.1s; }
 .explore-grid-item:nth-child(6) { animation-delay: 0.12s; }
-.explore-grid-item:nth-child(7) { animation-delay: 0.14s; }
-.explore-grid-item:nth-child(8) { animation-delay: 0.16s; }
-.explore-grid-item:nth-child(9) { animation-delay: 0.18s; }
 .explore-grid-item:nth-child(n+10) { animation-delay: 0.2s; }
+
+/* ---- Explore Infinite Scroll Sentinel & Loading ---- */
+.explore-scroll-sentinel {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 0;
+    width: 100%;
+}
+

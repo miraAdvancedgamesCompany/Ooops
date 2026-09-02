@@ -1,22 +1,28 @@
 // ==========================================
 // Oops:) — Reels Full-Screen Viewer Logic
-// Real aspect-ratio video sizing with letterboxing/borders
+// TikTok-style: Scrubber, ±5s double-tap, ×2 long-press, fixed like state
+// Real aspect-ratio video with letterboxing/borders
 // No publisher profiles, no follow buttons
 // Infinite load: 13 reels at a time, highly randomized
 // ==========================================
 
-import { getAllContent, formatNumber, isLiked, isSaved, getLikeCount } from './firebase.js';
+import { getAllContent, formatNumber, isLiked, isSaved, getLikeCount, incrementViewCount } from './firebase.js';
 import { handleLikeClick, handleSaveClick, openCommentsModal, INTERACTION_ICONS } from './interactions.js';
 import { getCurrentUser } from './auth.js';
-import { rankContentForUser, recordWatchSession, markWatched } from './recommendation.js';
+import { rankContentForUser, recordWatchSession, markWatched, clearWatched } from './recommendation.js';
 
 const REELS_BATCH_SIZE = 13;
 
 let reelsUnsubscribe = null;
 let reelsObserver = null;
 let currentReelIndex = 0;
+let allReelsItems = [];
 let currentReelsPool = [];
 let renderedReelsCount = 0;
+let lastKnownReelsPoolSize = 0;
+
+// Per-reel Firebase listener cleanup map (prevents like/save state disappearing)
+const reelListenerCleanup = new Map();
 
 export const REEL_ICONS = {
     heart: `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
@@ -57,19 +63,38 @@ function renderReel(item, index) {
             <div class="reel-video-wrapper">
                 <div class="reel-video-stage">
                     ${isVideo ? `
-                        <video src="${item.url}" loop playsinline muted preload="auto" autoplay></video>
+                        <video src="${item.url}" loop playsinline muted preload="auto"></video>
                     ` : `
                         <img src="${item.url}" alt="${escapeHtml(item.title || '')}">
                     `}
                 </div>
             </div>
 
-            <div class="reel-tap-area"></div>
+            <!-- Three invisible tap zones: left | center | right -->
+            <div class="reel-tap-zones">
+                <div class="reel-zone reel-zone-left"></div>
+                <div class="reel-zone reel-zone-center"></div>
+                <div class="reel-zone reel-zone-right"></div>
+            </div>
+
+            <!-- Double-tap flash overlays for seek -->
+            <div class="reel-seek-flash reel-seek-left">
+                <div class="reel-seek-ripple"></div>
+                <span class="reel-seek-label">-5s</span>
+            </div>
+            <div class="reel-seek-flash reel-seek-right">
+                <div class="reel-seek-ripple"></div>
+                <span class="reel-seek-label">+5s</span>
+            </div>
+
+            <!-- 2x Speed badge -->
+            <div class="reel-speed-badge">2×</div>
+
+            <!-- Play/Pause icon flash -->
             <div class="reel-play-icon">${REEL_ICONS.play}</div>
 
-            <div class="reel-progress">
-                <div class="reel-progress-bar"></div>
-            </div>
+            <!-- Heart burst on double-tap like -->
+            <div class="heart-burst" style="z-index:15;">${INTERACTION_ICONS.heartFilled}</div>
 
             <div class="reel-gradient"></div>
 
@@ -98,7 +123,7 @@ function renderReel(item, index) {
 
                 <div class="reel-action-item reel-like-action" data-liked="false" title="Like">
                     <div class="reel-action-icon like-icon">${REEL_ICONS.heart}</div>
-                    <span class="reel-action-count reel-like-num"></span>
+                    <span class="reel-action-count reel-like-num">0</span>
                 </div>
 
                 <div class="reel-action-item reel-comment-action" title="Comments">
@@ -116,7 +141,10 @@ function renderReel(item, index) {
                 </div>
             </div>
 
-            <div class="heart-burst" style="z-index:15;">${INTERACTION_ICONS.heartFilled}</div>
+            <!-- Draggable scrubber bar at bottom -->
+            <div class="reel-scrubber-wrap">
+                <input type="range" class="reel-scrubber" min="0" max="100" value="0" step="0.1">
+            </div>
         </div>
     `;
 }
@@ -128,88 +156,103 @@ function attachReelEvents(elements) {
         const contentId = reelItem.dataset.id;
         const category = reelItem.dataset.category || 'general';
 
-        const likeAction = reelItem.querySelector('.reel-like-action');
-        const likeIcon = reelItem.querySelector('.like-icon');
-        const likeNum = reelItem.querySelector('.reel-like-num');
+        const likeAction  = reelItem.querySelector('.reel-like-action');
+        const likeIcon    = likeAction ? likeAction.querySelector('.like-icon') : null;
+        const likeNum     = reelItem.querySelector('.reel-like-num');
         const commentAction = reelItem.querySelector('.reel-comment-action');
-        const saveAction = reelItem.querySelector('.reel-save-action');
-        const saveIcon = reelItem.querySelector('.save-icon');
-        const soundBtn = reelItem.querySelector('.reel-sound-toggle');
-        const video = reelItem.querySelector('video');
+        const saveAction  = reelItem.querySelector('.reel-save-action');
+        const saveIcon    = saveAction ? saveAction.querySelector('.save-icon') : null;
+        const soundBtn    = reelItem.querySelector('.reel-sound-toggle');
+        const video       = reelItem.querySelector('video');
+        const scrubber    = reelItem.querySelector('.reel-scrubber');
+        const playIcon    = reelItem.querySelector('.reel-play-icon');
+        const heartBurst  = reelItem.querySelector('.heart-burst');
+        const speedBadge  = reelItem.querySelector('.reel-speed-badge');
+        const seekFlashL  = reelItem.querySelector('.reel-seek-left');
+        const seekFlashR  = reelItem.querySelector('.reel-seek-right');
+        const zoneLeft    = reelItem.querySelector('.reel-zone-left');
+        const zoneCenter  = reelItem.querySelector('.reel-zone-center');
+        const zoneRight   = reelItem.querySelector('.reel-zone-right');
 
-        // Check if user has liked / saved
+        // Cleanup any previous Firebase listeners for this reel (prevents state disappearing)
+        if (reelListenerCleanup.has(contentId)) {
+            reelListenerCleanup.get(contentId).forEach(fn => { try { fn(); } catch(e) {} });
+            reelListenerCleanup.delete(contentId);
+        }
+        const cleanupFns = [];
+
+        // Like & Save: persistent real-time state, never resets
         if (user) {
-            isLiked(contentId, user.uid, (liked) => {
+            const unsubLike = isLiked(contentId, user.uid, (liked) => {
                 if (!likeAction) return;
                 likeAction.dataset.liked = liked.toString();
                 likeAction.classList.toggle('liked', liked);
-                likeIcon.innerHTML = liked ? REEL_ICONS.heartFilled : REEL_ICONS.heart;
+                if (likeIcon) likeIcon.innerHTML = liked ? REEL_ICONS.heartFilled : REEL_ICONS.heart;
             });
+            cleanupFns.push(unsubLike);
 
-            isSaved(contentId, user.uid, (saved) => {
+            const unsubSave = isSaved(contentId, user.uid, (saved) => {
                 if (!saveAction) return;
                 saveAction.dataset.saved = saved.toString();
                 saveAction.classList.toggle('saved', saved);
-                saveIcon.innerHTML = saved ? REEL_ICONS.bookmarkFilled : REEL_ICONS.bookmark;
+                if (saveIcon) saveIcon.innerHTML = saved ? REEL_ICONS.bookmarkFilled : REEL_ICONS.bookmark;
             });
+            cleanupFns.push(unsubSave);
         }
 
-        // Live like count
-        getLikeCount(contentId, (count) => {
-            if (likeNum) {
-                likeNum.textContent = count > 0 ? formatNumber(count) : '0';
-            }
+        const unsubCount = getLikeCount(contentId, (count) => {
+            if (likeNum) likeNum.textContent = count > 0 ? formatNumber(count) : '0';
         });
+        cleanupFns.push(unsubCount);
+        reelListenerCleanup.set(contentId, cleanupFns);
 
-        // Like button click
-        if (likeAction) {
-            likeAction.addEventListener('click', (e) => {
-                e.stopPropagation();
-                handleLikeClick(contentId, category, likeAction, likeNum);
-            });
-        }
-
-        // Comment button click
-        if (commentAction) {
-            commentAction.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openCommentsModal(contentId, category);
-            });
-        }
-
-        // Save button click
-        if (saveAction) {
-            saveAction.addEventListener('click', (e) => {
-                e.stopPropagation();
-                handleSaveClick(contentId, category, saveAction);
-            });
-        }
-
+        // Like click
+        if (likeAction) likeAction.addEventListener('click', (e) => { e.stopPropagation(); handleLikeClick(contentId, category, likeAction, likeNum); });
+        // Comment click
+        if (commentAction) commentAction.addEventListener('click', (e) => { e.stopPropagation(); openCommentsModal(contentId, category); });
         // Sound toggle
         if (soundBtn && video) {
             soundBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 video.muted = !video.muted;
                 const iconEl = soundBtn.querySelector('.sound-icon');
-                if (iconEl) {
-                    iconEl.innerHTML = video.muted ? REEL_ICONS.volumeOff : REEL_ICONS.volumeOn;
-                }
+                if (iconEl) iconEl.innerHTML = video.muted ? REEL_ICONS.volumeOff : REEL_ICONS.volumeOn;
                 soundBtn.dataset.muted = video.muted.toString();
             });
         }
 
-        // Tap area: Double tap like, single tap play/pause
-        const tapArea = reelItem.querySelector('.reel-tap-area');
-        if (tapArea) {
-            let lastTap = 0;
-            let singleTapTimer = null;
+        // Helper: trigger seek flash animation
+        function triggerSeekFlash(el) {
+            if (!el) return;
+            el.classList.remove('active');
+            void el.offsetWidth;
+            el.classList.add('active');
+            setTimeout(() => el.classList.remove('active'), 700);
+        }
 
-            tapArea.addEventListener('click', () => {
+        // Helper: attach long-press (500ms) handler to a zone
+        function attachLongPress(zone, onStart, onEnd) {
+            if (!zone) return;
+            let timer = null;
+            let active = false;
+            const start = () => { active = false; timer = setTimeout(() => { active = true; onStart(); }, 500); };
+            const end   = () => { clearTimeout(timer); if (active) { onEnd(); active = false; } };
+            zone._lpActive = () => active;
+            zone.addEventListener('touchstart', start, { passive: true });
+            zone.addEventListener('touchend',   end,   { passive: true });
+            zone.addEventListener('mousedown',  start);
+            zone.addEventListener('mouseup',    end);
+            zone.addEventListener('mouseleave', end);
+        }
+
+        // CENTER: single tap = play/pause, double-tap = like + heart burst
+        if (zoneCenter && video) {
+            let lastCenterTap = 0;
+            let centerTimer = null;
+            zoneCenter.addEventListener('click', () => {
                 const now = Date.now();
-                if (now - lastTap < 300) {
-                    // Double tap like
-                    clearTimeout(singleTapTimer);
-                    const heartBurst = reelItem.querySelector('.heart-burst');
+                if (now - lastCenterTap < 320) {
+                    clearTimeout(centerTimer);
                     if (heartBurst) {
                         heartBurst.classList.remove('active');
                         void heartBurst.offsetWidth;
@@ -218,95 +261,148 @@ function attachReelEvents(elements) {
                     }
                     handleLikeClick(contentId, category, likeAction, likeNum);
                 } else {
-                    // Single tap
-                    singleTapTimer = setTimeout(() => {
-                        if (video) {
-                            const playIcon = reelItem.querySelector('.reel-play-icon');
-                            if (video.paused) {
-                                video.play().catch(() => {});
-                                if (playIcon) playIcon.innerHTML = REEL_ICONS.pause;
-                            } else {
-                                video.pause();
-                                if (playIcon) playIcon.innerHTML = REEL_ICONS.play;
-                            }
-                            if (playIcon) {
-                                playIcon.classList.remove('show');
-                                void playIcon.offsetWidth;
-                                playIcon.classList.add('show');
-                            }
+                    centerTimer = setTimeout(() => {
+                        if (video.paused) {
+                            video.play().catch(() => {});
+                            if (playIcon) playIcon.innerHTML = REEL_ICONS.pause;
+                        } else {
+                            video.pause();
+                            if (playIcon) playIcon.innerHTML = REEL_ICONS.play;
                         }
-                    }, 220);
+                        if (playIcon) {
+                            playIcon.classList.remove('show');
+                            void playIcon.offsetWidth;
+                            playIcon.classList.add('show');
+                        }
+                    }, 230);
                 }
-                lastTap = now;
+                lastCenterTap = now;
             });
         }
 
-        // Progress bar
-        if (video) {
+        // LEFT: double-tap = -5s | long-press = 2x speed
+        if (zoneLeft && video) {
+            attachLongPress(zoneLeft,
+                () => { video.playbackRate = 2.0; if (speedBadge) speedBadge.classList.add('active'); },
+                () => { video.playbackRate = 1.0; if (speedBadge) speedBadge.classList.remove('active'); }
+            );
+            let lastLeftTap = 0;
+            zoneLeft.addEventListener('click', () => {
+                if (zoneLeft._lpActive && zoneLeft._lpActive()) return;
+                const now = Date.now();
+                if (now - lastLeftTap < 320) {
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                    triggerSeekFlash(seekFlashL);
+                }
+                lastLeftTap = now;
+            });
+        }
+
+        // RIGHT: double-tap = +5s | long-press = 2x speed
+        if (zoneRight && video) {
+            attachLongPress(zoneRight,
+                () => { video.playbackRate = 2.0; if (speedBadge) speedBadge.classList.add('active'); },
+                () => { video.playbackRate = 1.0; if (speedBadge) speedBadge.classList.remove('active'); }
+            );
+            let lastRightTap = 0;
+            zoneRight.addEventListener('click', () => {
+                if (zoneRight._lpActive && zoneRight._lpActive()) return;
+                const now = Date.now();
+                if (now - lastRightTap < 320) {
+                    video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
+                    triggerSeekFlash(seekFlashR);
+                }
+                lastRightTap = now;
+            });
+        }
+
+        // Draggable scrubber
+        if (scrubber && video) {
+            let isScrubbing = false;
+            scrubber.addEventListener('mousedown',  () => { isScrubbing = true; });
+            scrubber.addEventListener('touchstart', () => { isScrubbing = true; }, { passive: true });
+            scrubber.addEventListener('input', (e) => {
+                e.stopPropagation();
+                if (video.duration) video.currentTime = (parseFloat(e.target.value) / 100) * video.duration;
+            });
+            scrubber.addEventListener('mouseup',  () => { isScrubbing = false; });
+            scrubber.addEventListener('touchend', () => { isScrubbing = false; }, { passive: true });
             video.addEventListener('timeupdate', () => {
-                const progressBar = reelItem.querySelector('.reel-progress-bar');
-                if (progressBar && video.duration) {
-                    const percent = (video.currentTime / video.duration) * 100;
-                    progressBar.style.width = percent + '%';
+                if (!isScrubbing && video.duration) {
+                    scrubber.value = (video.currentTime / video.duration) * 100;
                 }
             });
         }
 
-        if (reelsObserver) {
-            reelsObserver.observe(reelItem);
-        }
+        if (reelsObserver) reelsObserver.observe(reelItem);
     });
 }
 
+
+
 function loadNextReelsBatch() {
     const scrollContainer = document.getElementById('reelsScroll');
-    if (!scrollContainer || renderedReelsCount >= currentReelsPool.length) return;
+    if (!scrollContainer || allReelsItems.length === 0) return;
+
+    // If user has reached the end of current pool, recycle watched history and re-rank
+    if (renderedReelsCount >= currentReelsPool.length) {
+        clearWatched();
+        const recycled = rankContentForUser(allReelsItems);
+        currentReelsPool = currentReelsPool.concat(recycled);
+    }
 
     const nextBatch = currentReelsPool.slice(renderedReelsCount, renderedReelsCount + REELS_BATCH_SIZE);
-    const startIndex = renderedReelsCount;
-    renderedReelsCount += nextBatch.length;
+    if (nextBatch.length === 0) return;
 
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = nextBatch.map((item, i) => renderReel(item, startIndex + i)).join('');
+    // Loading indicator ("l'ording")
+    const loadingSlide = document.createElement('div');
+    loadingSlide.className = 'reel-item reel-batch-loading';
+    loadingSlide.innerHTML = `<div class="loading-spinner"></div>`;
+    scrollContainer.appendChild(loadingSlide);
 
-    const newReelElements = Array.from(tempDiv.children);
-    newReelElements.forEach(el => scrollContainer.appendChild(el));
-
-    attachReelEvents(newReelElements);
+    setTimeout(() => {
+        if (loadingSlide.parentNode) loadingSlide.remove();
+        const startIndex = renderedReelsCount;
+        renderedReelsCount += nextBatch.length;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = nextBatch.map((item, i) => renderReel(item, startIndex + i)).join('');
+        const newReelElements = Array.from(tempDiv.children);
+        newReelElements.forEach(el => scrollContainer.appendChild(el));
+        attachReelEvents(newReelElements);
+    }, 350);
 }
 
 function setupReelsObserver() {
-    if (reelsObserver) {
-        reelsObserver.disconnect();
-    }
+    if (reelsObserver) reelsObserver.disconnect();
 
     reelsObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-            const video = entry.target.querySelector('video');
-            const disc = entry.target.querySelector('.reel-music-disc');
-            const contentId = entry.target.dataset.id;
-            const category = entry.target.dataset.category || 'general';
-            const index = parseInt(entry.target.dataset.index || '0');
+            if (entry.target.classList.contains('reel-batch-loading')) return;
+            const video      = entry.target.querySelector('video');
+            const disc       = entry.target.querySelector('.reel-music-disc');
+            const contentId  = entry.target.dataset.id;
+            const category   = entry.target.dataset.category || 'general';
+            const index      = parseInt(entry.target.dataset.index || '0');
 
             if (entry.isIntersecting) {
                 if (video) {
                     video.play().catch(() => {});
                     entry.target._startTime = Date.now();
                     markWatched(contentId);
+                    incrementViewCount(contentId);
                 }
                 if (disc) disc.style.animationPlayState = 'running';
                 currentReelIndex = index;
-
-                // Infinite load: when user gets near the end of loaded batch, load next 13 reels
-                if (currentReelIndex >= renderedReelsCount - 3 && renderedReelsCount < currentReelsPool.length) {
+                if (currentReelIndex >= renderedReelsCount - 3) {
                     loadNextReelsBatch();
                 }
             } else {
                 if (video) {
                     video.pause();
+                    video.playbackRate = 1.0;
                     if (entry.target._startTime) {
-                        const duration = (Date.now() - entry.target._startTime) / 1000;
-                        recordWatchSession(contentId, category, duration, video.duration);
+                        const dur = (Date.now() - entry.target._startTime) / 1000;
+                        recordWatchSession(contentId, category, dur, video.duration);
                         entry.target._startTime = 0;
                     }
                 }
@@ -341,36 +437,39 @@ export function initReels() {
         const videoItems = items.filter(i => i.type === 'video');
         const displayItems = videoItems.length > 0 ? videoItems : items;
 
-        // Rank reels based on stochastic preference engine
+        allReelsItems = displayItems;
+
+        // Guard: only re-rank if pool size changed (fixes Firebase onValue re-trigger bug)
+        if (displayItems.length === lastKnownReelsPoolSize && renderedReelsCount > 0) return;
+        lastKnownReelsPoolSize = displayItems.length;
+
         currentReelsPool = rankContentForUser(displayItems);
         renderedReelsCount = 0;
         scrollContainer.innerHTML = '';
 
         setupReelsObserver();
 
-        // Initial batch of 13 reels
         const initialBatch = currentReelsPool.slice(0, REELS_BATCH_SIZE);
         renderedReelsCount = initialBatch.length;
-
         scrollContainer.innerHTML = initialBatch.map((item, i) => renderReel(item, i)).join('');
-
         const initialElements = Array.from(scrollContainer.querySelectorAll('.reel-item'));
         attachReelEvents(initialElements);
     });
 }
 
 export function destroyReels() {
-    if (reelsUnsubscribe) {
-        reelsUnsubscribe();
-        reelsUnsubscribe = null;
-    }
-    if (reelsObserver) {
-        reelsObserver.disconnect();
-        reelsObserver = null;
-    }
+    if (reelsUnsubscribe) { reelsUnsubscribe(); reelsUnsubscribe = null; }
+    if (reelsObserver)   { reelsObserver.disconnect(); reelsObserver = null; }
+
+    // Cleanup all Firebase listeners
+    reelListenerCleanup.forEach((fns) => fns.forEach(fn => { try { fn(); } catch(e) {} }));
+    reelListenerCleanup.clear();
+
+    lastKnownReelsPoolSize = 0;
+    renderedReelsCount = 0;
 
     document.querySelectorAll('#reelsView video').forEach(v => {
-        try { v.pause(); } catch (e) {}
+        try { v.pause(); v.playbackRate = 1.0; } catch (e) {}
     });
 
     document.querySelector('.app-header')?.classList.remove('hidden');

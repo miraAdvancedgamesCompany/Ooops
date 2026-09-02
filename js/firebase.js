@@ -173,6 +173,17 @@ export function updateContent(id, data) {
     return update(ref(db, `content/${id}`), data);
 }
 
+// Real view count: atomically increment views in Firebase
+export function incrementViewCount(contentId) {
+    if (!contentId) return;
+    const viewRef = ref(db, `content/${contentId}/views`);
+    get(viewRef).then(snap => {
+        const current = snap.val() || 0;
+        set(viewRef, current + 1);
+    }).catch(() => {});
+}
+
+
 // ---- User CRUD ----
 
 export function createUserProfile(uid, profileData) {

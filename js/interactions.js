@@ -42,14 +42,16 @@ export async function handleLikeClick(contentId, category = 'general', buttonEl 
         if (buttonEl) {
             buttonEl.classList.toggle('liked', liked);
             buttonEl.dataset.liked = liked.toString();
-            const iconWrap = buttonEl.querySelector('.icon-slot') || buttonEl;
-            iconWrap.innerHTML = liked ? INTERACTION_ICONS.heartFilled : INTERACTION_ICONS.heart;
+            const iconWrap = buttonEl.querySelector('.icon-slot') || buttonEl.querySelector('.like-icon');
+            if (iconWrap) {
+                iconWrap.innerHTML = liked ? INTERACTION_ICONS.heartFilled : INTERACTION_ICONS.heart;
+            }
         }
 
         if (countEl) {
             const currentCount = parseInt(countEl.textContent.replace(/[^0-9]/g, '')) || 0;
             const newCount = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
-            countEl.textContent = newCount > 0 ? `${newCount}` : '';
+            countEl.textContent = newCount > 0 ? `${newCount}` : '0';
         }
 
         if (liked) {
@@ -71,8 +73,10 @@ export async function handleSaveClick(contentId, category = 'general', buttonEl 
         if (buttonEl) {
             buttonEl.classList.toggle('saved', saved);
             buttonEl.dataset.saved = saved.toString();
-            const iconWrap = buttonEl.querySelector('.icon-slot') || buttonEl;
-            iconWrap.innerHTML = saved ? INTERACTION_ICONS.bookmarkFilled : INTERACTION_ICONS.bookmark;
+            const iconWrap = buttonEl.querySelector('.icon-slot') || buttonEl.querySelector('.save-icon');
+            if (iconWrap) {
+                iconWrap.innerHTML = saved ? INTERACTION_ICONS.bookmarkFilled : INTERACTION_ICONS.bookmark;
+            }
         }
         if (saved) {
             trackInteraction(user.uid, contentId, category, 'save');
