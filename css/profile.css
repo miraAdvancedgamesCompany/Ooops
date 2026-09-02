@@ -1,0 +1,317 @@
+/* ==========================================
+   Oops:) — User Profile View Styles
+   ========================================== */
+
+.profile-container,
+.profile-guest-container {
+    padding: 20px 16px 40px;
+    animation: fadeIn 0.3s ease;
+}
+
+/* ---- Guest Unauthenticated State ---- */
+.profile-guest-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding-top: 60px;
+    gap: 14px;
+}
+
+.profile-guest-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #181822;
+    border: 2px dashed #343448;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #777;
+    margin-bottom: 8px;
+}
+
+.profile-guest-avatar svg {
+    width: 40px;
+    height: 40px;
+}
+
+.profile-guest-container h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    max-width: 280px;
+    line-height: 1.3;
+}
+
+.profile-guest-container p {
+    font-size: 14px;
+    color: #888;
+    max-width: 280px;
+    line-height: 1.4;
+}
+
+.profile-login-cta-btn {
+    margin-top: 10px;
+    padding: 12px 36px;
+    background: linear-gradient(135deg, #833ab4, #e1306c);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(225, 48, 108, 0.35);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.profile-login-cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(225, 48, 108, 0.5);
+}
+
+.profile-guest-settings {
+    margin-top: 40px;
+    width: 100%;
+    max-width: 320px;
+    background: #12121a;
+    border: 1px solid #222230;
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+
+/* ---- Authenticated State ---- */
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #222230;
+    position: relative;
+}
+
+.profile-avatar-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: linear-gradient(135deg, #833ab4, #e1306c);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(131, 58, 180, 0.3);
+}
+
+.profile-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar-initial {
+    font-size: 26px;
+    font-weight: 800;
+    color: white;
+}
+
+.profile-names {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-display-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-username {
+    font-size: 13px;
+    color: #888;
+    font-weight: 500;
+}
+
+.profile-settings-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #1a1a24;
+    border: 1px solid #282838;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.profile-settings-btn:hover {
+    background: #252534;
+    color: #fff;
+}
+
+.profile-settings-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Settings Panel */
+.profile-settings-panel {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    background: #13131c;
+    border: 1px solid #252536;
+    border-radius: 14px;
+    padding: 16px;
+    margin: 14px 0;
+    animation: fadeIn 0.2s ease;
+}
+
+.profile-settings-panel.open {
+    display: flex;
+}
+
+.settings-row,
+.profile-setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.profile-lang-select {
+    background: #1e1e2c;
+    color: #fff;
+    border: 1px solid #333348;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+}
+
+.settings-logout-btn {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    padding: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+}
+
+.settings-logout-btn:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
+/* ---- Tabs (Saved & Liked) ---- */
+.profile-tabs {
+    display: flex;
+    border-bottom: 1px solid #222230;
+    margin-top: 10px;
+}
+
+.profile-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 8px;
+    background: none;
+    border: none;
+    color: #777;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+}
+
+.profile-tab-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.profile-tab-btn.active {
+    color: #fff;
+}
+
+.profile-tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: linear-gradient(90deg, #833ab4, #e1306c);
+    border-radius: 2px;
+}
+
+/* ---- Content Grid ---- */
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    margin-top: 14px;
+}
+
+.profile-grid-card {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: #111;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.profile-grid-card video,
+.profile-grid-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.profile-grid-card:hover video,
+.profile-grid-card:hover img {
+    transform: scale(1.05);
+}
+
+.grid-card-type-icon {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 11px;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.profile-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.profile-grid-card:hover .profile-card-overlay {
+    opacity: 1;
+}

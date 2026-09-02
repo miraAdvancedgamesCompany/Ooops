@@ -1,0 +1,208 @@
+/* ==========================================
+   Oops:) — Explore / Grid Page Styles
+   ========================================== */
+
+/* ---- Search Bar ---- */
+.explore-search {
+    padding: var(--space-md) var(--space-lg);
+    position: sticky;
+    top: var(--header-height);
+    z-index: 100;
+    background: var(--bg-primary);
+}
+
+.search-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-sm);
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+}
+
+.search-input-wrapper:focus-within {
+    border-color: var(--border-color);
+    background: var(--bg-card);
+}
+
+.search-input-wrapper svg {
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.search-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    padding: var(--space-2xs) 0;
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* ---- Filter Tabs ---- */
+.explore-filters {
+    display: flex;
+    gap: var(--space-sm);
+    padding: 0 var(--space-lg);
+    padding-bottom: var(--space-md);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.filter-chip {
+    flex-shrink: 0;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.filter-chip:active {
+    transform: scale(0.95);
+}
+
+.filter-chip.active {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border-color: var(--text-primary);
+}
+
+/* ---- Explore Grid ---- */
+.explore-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    padding: 0;
+}
+
+/* Instagram-style grid pattern: every 3rd row has a large item */
+.explore-grid-item {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-card);
+}
+
+/* Large items span 2x2 */
+.explore-grid-item.large {
+    grid-row: span 2;
+    grid-column: span 2;
+    aspect-ratio: auto;
+}
+
+.explore-grid-item video,
+.explore-grid-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s var(--ease-out);
+}
+
+.explore-grid-item:hover video,
+.explore-grid-item:hover img {
+    transform: scale(1.05);
+}
+
+.explore-grid-item:active {
+    opacity: 0.8;
+}
+
+/* Video indicator */
+.grid-item-indicator {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    z-index: 5;
+}
+
+.grid-item-indicator svg {
+    width: 18px;
+    height: 18px;
+    fill: white;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+}
+
+/* Hover overlay */
+.grid-item-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xl);
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+    z-index: 3;
+}
+
+.explore-grid-item:hover .grid-item-overlay {
+    opacity: 1;
+}
+
+.grid-item-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: white;
+    font-size: var(--font-base);
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.grid-item-stat svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+/* ---- Explore Skeleton ---- */
+.explore-skeleton-item {
+    aspect-ratio: 1 / 1;
+}
+
+.explore-skeleton-item.large {
+    grid-row: span 2;
+    grid-column: span 2;
+    aspect-ratio: auto;
+}
+
+/* ---- Load More ---- */
+.load-more-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3xl);
+}
+
+/* ---- Explore Item Entry Animation ---- */
+.explore-grid-item {
+    animation: fadeIn 0.4s ease forwards;
+    opacity: 0;
+}
+
+.explore-grid-item:nth-child(1) { animation-delay: 0.02s; }
+.explore-grid-item:nth-child(2) { animation-delay: 0.04s; }
+.explore-grid-item:nth-child(3) { animation-delay: 0.06s; }
+.explore-grid-item:nth-child(4) { animation-delay: 0.08s; }
+.explore-grid-item:nth-child(5) { animation-delay: 0.1s; }
+.explore-grid-item:nth-child(6) { animation-delay: 0.12s; }
+.explore-grid-item:nth-child(7) { animation-delay: 0.14s; }
+.explore-grid-item:nth-child(8) { animation-delay: 0.16s; }
+.explore-grid-item:nth-child(9) { animation-delay: 0.18s; }
+.explore-grid-item:nth-child(n+10) { animation-delay: 0.2s; }

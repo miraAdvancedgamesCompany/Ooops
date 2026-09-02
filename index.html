@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Oops:) — Watch and discover amazing videos and reels.">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <title>Oops:) — Watch & Discover</title>
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😜</text></svg>">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/feed.css">
+    <link rel="stylesheet" href="css/reels.css">
+    <link rel="stylesheet" href="css/explore.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/interactions.css">
+    <link rel="stylesheet" href="css/profile.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ====== Header (Logo & Language/Auth shortcut) ====== -->
+        <header class="app-header" id="appHeader">
+            <div class="app-logo" id="headerLogo" title="Oops:)">Oops:)</div>
+            <div class="header-actions">
+                <button class="header-lang-btn" id="headerLangBtn" aria-label="Language">
+                    🌐
+                </button>
+            </div>
+        </header>
+
+        <!-- ====== Main Content ====== -->
+        <main class="main-content" id="mainContent">
+            <!-- Feed View -->
+            <section class="page-view" id="feedView" aria-label="Home Feed">
+                <!-- Injected by feed.js -->
+            </section>
+
+            <!-- Explore View -->
+            <section class="page-view" id="exploreView" aria-label="Explore">
+                <!-- Injected by explore.js -->
+            </section>
+
+            <!-- Reels View -->
+            <section class="page-view" id="reelsView" aria-label="Reels">
+                <!-- Injected by reels.js -->
+            </section>
+
+            <!-- Profile View -->
+            <section class="page-view" id="profileView" aria-label="Profile">
+                <!-- Injected by profile.js -->
+            </section>
+        </main>
+
+        <!-- ====== Bottom Navigation (Home, Explore, Reels, Profile) ====== -->
+        <nav class="bottom-nav" id="bottomNav" aria-label="Main Navigation">
+            <button class="nav-item" data-page="feed" aria-label="Home" title="Home Feed">
+                <span class="nav-icon-slot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </span>
+            </button>
+            <button class="nav-item" data-page="explore" aria-label="Explore" title="Explore Grid">
+                <span class="nav-icon-slot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </span>
+            </button>
+            <button class="nav-item" data-page="reels" aria-label="Reels" title="Reels Viewer">
+                <span class="nav-icon-slot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M2 8h20"/><path d="M8 2l2 6"/><path d="M14 2l2 6"/><polygon points="10 12 16 15.5 10 19 10 12" fill="currentColor" stroke="none"/></svg>
+                </span>
+            </button>
+            <button class="nav-item" data-page="profile" aria-label="Profile" title="Profile">
+                <span class="nav-icon-slot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- App Script -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

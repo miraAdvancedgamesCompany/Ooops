@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Oops:) Studio — Secured Admin & Content Management Dashboard">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <meta name="theme-color" content="#0b0b0f">
+
+    <title>Oops:) Studio — Admin Control Center</title>
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="dashboard-body">
+
+    <!-- ==========================================
+         SECURITY LOCK SCREEN (DEFAULT STATE)
+         Blocked from public access!
+         ========================================== -->
+    <div id="adminLockScreen" class="admin-lock-screen">
+        <div class="lock-card">
+            <div class="lock-icon-badge">🔒</div>
+            <div class="lock-brand">
+                <span class="dash-brand-logo">Oops:)</span>
+                <span class="dash-brand-badge">Restricted</span>
+            </div>
+            <h2>Admin Authorization Required</h2>
+            <p>This management console is restricted. Unauthorized access is forbidden.</p>
+
+            <form id="adminLoginForm" class="lock-form">
+                <div class="lock-field">
+                    <label for="adminKeyInput">Master Admin Passkey / PIN</label>
+                    <input
+                        type="password"
+                        id="adminKeyInput"
+                        class="dash-input"
+                        placeholder="Enter master admin PIN..."
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+                <div id="lockErrorMsg" class="lock-error-msg"></div>
+                <button type="submit" id="adminUnlockBtn" class="lock-submit-btn">
+                    <span>Unlock Studio Console</span>
+                </button>
+            </form>
+            <div class="lock-hint">
+                <span>Default Access Key: <code>admin2026</code></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         ADMIN MAIN DASHBOARD (HIDDEN UNTIL AUTHENTICATED)
+         ========================================== -->
+    <div id="dashWrapper" class="dash-wrapper" style="display: none;">
+        <!-- ====== Dashboard Header ====== -->
+        <header class="dash-navbar">
+            <div class="dash-brand">
+                <span class="dash-brand-logo">Oops:)</span>
+                <span class="dash-brand-badge">Admin Studio</span>
+            </div>
+
+            <div class="dash-nav-tabs">
+                <button class="dash-tab-btn active" data-tab="analytics">📊 Overview</button>
+                <button class="dash-tab-btn" data-tab="users">👥 User Management</button>
+                <button class="dash-tab-btn" data-tab="content">🎬 Content Library</button>
+                <button class="dash-tab-btn" data-tab="upload">➕ Upload New</button>
+            </div>
+
+            <div class="dash-header-actions">
+                <a href="index.html" target="_blank" class="dash-preview-app-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    Live App
+                </a>
+                <button id="adminLogoutBtn" class="dash-lock-now-btn" title="Lock Dashboard">
+                    🔒 Lock
+                </button>
+            </div>
+        </header>
+
+        <main class="dash-main-container">
+            <!-- ====== Top Stats Row ====== -->
+            <section class="dash-stats-grid">
+                <div class="dash-stat-card">
+                    <div class="stat-icon-wrapper purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTotalMedia">0</div>
+                        <div class="stat-name">Total Media Items</div>
+                    </div>
+                </div>
+
+                <div class="dash-stat-card">
+                    <div class="stat-icon-wrapper blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTotalUsers">0</div>
+                        <div class="stat-name">Registered Users</div>
+                    </div>
+                </div>
+
+                <div class="dash-stat-card">
+                    <div class="stat-icon-wrapper pink">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTotalLikes">0</div>
+                        <div class="stat-name">Realtime Likes</div>
+                    </div>
+                </div>
+
+                <div class="dash-stat-card">
+                    <div class="stat-icon-wrapper orange">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTotalComments">0</div>
+                        <div class="stat-name">User Comments</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ====== TAB 1: OVERVIEW & ANALYTICS ====== -->
+            <section class="dash-tab-section active" id="tabSectionAnalytics">
+                <div class="analytics-grid">
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <div class="dash-card-title">
+                                <span class="title-icon">⚡</span>
+                                <h2>System Health & Realtime Status</h2>
+                            </div>
+                        </div>
+                        <div class="health-body">
+                            <div class="health-row">
+                                <span>Firebase Realtime Database</span>
+                                <span class="badge-online">🟢 Active & Connected</span>
+                            </div>
+                            <div class="health-row">
+                                <span>Firebase Authentication</span>
+                                <span class="badge-online">🟢 Google + Password Ready</span>
+                            </div>
+                            <div class="health-row">
+                                <span>Recommendation Engine</span>
+                                <span class="badge-online">🟢 Active (Affinity & Weights)</span>
+                            </div>
+                            <div class="health-row">
+                                <span>Adult Content Age Gate</span>
+                                <span class="badge-online">🔞 18+ Verification Enabled</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <div class="dash-card-title">
+                                <span class="title-icon">🎯</span>
+                                <h2>Recommendation Categories & AI Weights</h2>
+                            </div>
+                        </div>
+                        <div class="categories-tag-cloud" id="categoriesTagCloud">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ====== TAB 2: USER MANAGEMENT ====== -->
+            <section class="dash-tab-section" id="tabSectionUsers">
+                <div class="dash-card">
+                    <div class="dash-card-header">
+                        <div class="dash-card-title">
+                            <span class="title-icon">👥</span>
+                            <h2>Registered Accounts & User Directory</h2>
+                            <span id="usersCountBadge" class="count-pill">0</span>
+                        </div>
+                        <div class="search-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" id="usersSearchInput" placeholder="Search by name, username or email...">
+                        </div>
+                    </div>
+
+                    <div class="users-table-wrapper">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Username</th>
+                                    <th>Date of Birth (Age)</th>
+                                    <th>Method</th>
+                                    <th>Joined</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="7" class="table-loading">Syncing users from Firebase...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ====== TAB 3: CONTENT LIBRARY ====== -->
+            <section class="dash-tab-section" id="tabSectionContent">
+                <div class="dash-card library-card">
+                    <div class="dash-card-header library-header">
+                        <div class="dash-card-title">
+                            <span class="title-icon">📁</span>
+                            <h2>Stored Media Library</h2>
+                            <span id="libraryCountBadge" class="count-pill">0</span>
+                        </div>
+
+                        <div class="library-toolbar">
+                            <div class="search-box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="librarySearchInput" placeholder="Search by title, tag...">
+                            </div>
+
+                            <div class="filter-group">
+                                <button type="button" class="lib-filter-btn active" data-type="all">All</button>
+                                <button type="button" class="lib-filter-btn" data-type="video">Videos</button>
+                                <button type="button" class="lib-filter-btn" data-type="image">Images</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="libraryContainer" class="library-grid">
+                        <div class="loading-state">
+                            <div class="loading-spinner"></div>
+                            <p>Syncing library...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ====== TAB 4: UPLOAD NEW MEDIA ====== -->
+            <section class="dash-tab-section" id="tabSectionUpload">
+                <div class="dash-card upload-card">
+                    <div class="dash-card-header">
+                        <div class="dash-card-title">
+                            <span class="title-icon">➕</span>
+                            <h2>Add Stored Video / Photo</h2>
+                        </div>
+                        <button type="button" id="seedDbBtn" class="seed-action-btn" title="Push sample videos to Firebase">
+                            ⚡ Seed 11 High-Quality Videos
+                        </button>
+                    </div>
+
+                    <form id="uploadForm" class="dash-form">
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="contentType">Media Type</label>
+                                <select id="contentType" class="dash-input select-input">
+                                    <option value="video">🎬 Video (MP4 / WebM / Link)</option>
+                                    <option value="image">🖼️ Image (JPG / PNG / WebP)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-field">
+                                <label for="contentCategory">Category / Topic (For AI Recommendation)</label>
+                                <select id="contentCategory" class="dash-input select-input">
+                                    <option value="general">General</option>
+                                    <option value="nightlife">Nightlife & Tokyo</option>
+                                    <option value="music">Music & DJ</option>
+                                    <option value="dance">Dance</option>
+                                    <option value="sports">Sports & Skateboarding</option>
+                                    <option value="nature">Nature & Ocean</option>
+                                    <option value="lifestyle">Lifestyle & Coffee</option>
+                                    <option value="travel">Travel & Hiking</option>
+                                    <option value="comedy">Comedy</option>
+                                    <option value="gaming">Gaming</option>
+                                    <option value="art">Art & CGI</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="contentTitle">Title / Headline</label>
+                            <input type="text" id="contentTitle" class="dash-input" placeholder="e.g. Sunset in Venice Beach 🌅" required>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="contentUrl">Direct Media URL (MP4 Video or Image link)</label>
+                            <div class="input-with-clear">
+                                <input
+                                    type="url"
+                                    id="contentUrl"
+                                    class="dash-input"
+                                    placeholder="https://assets.example.com/video.mp4"
+                                    required
+                                >
+                                <button type="button" id="clearUrlBtn" class="clear-btn" title="Clear">✕</button>
+                            </div>
+                            <span class="field-hint">Paste any direct public MP4 video or photo URL.</span>
+                        </div>
+
+                        <!-- Live Media Preview Box -->
+                        <div id="urlPreviewBox" class="preview-box">
+                            <div class="preview-header">
+                                <span>Live Media Preview</span>
+                                <span id="previewTypeBadge" class="preview-badge">video</span>
+                            </div>
+                            <div id="previewMediaContainer" class="preview-media-container"></div>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="contentDesc">Description & Tags (optional)</label>
+                            <textarea id="contentDesc" class="dash-input textarea-input" rows="2" placeholder="e.g. Enjoying the moment #reels #vibes"></textarea>
+                        </div>
+
+                        <div class="form-footer">
+                            <div id="uploadStatusMsg" class="upload-status-msg"></div>
+                            <button type="submit" id="submitBtn" class="primary-submit-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span>Store Video in Database</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="dashToast" class="dash-toast"></div>
+
+    <!-- Dashboard Module -->
+    <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>
